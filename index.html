@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ORBIT'S GAME</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: #000;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            width: 100vw;
+            touch-action: manipulation;
+        }
+
+        #game-container {
+            position: relative;
+            width: min(95vw, 900px);
+            height: min(85vh, 600px);
+            background-color: #111;
+            overflow: hidden;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(0, 100, 255, 0.3);
+        }
+
+        .note, .player {
+            position: absolute;
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            border-radius: 50%;
+        }
+
+        .note {
+            cursor: pointer;
+            z-index: 10;
+        }
+
+        .note:hover {
+            transform: scale(1.05);
+            transition: transform 0.1s;
+        }
+
+        .green-ring {
+            animation: spin 2s linear infinite;
+        }
+
+        .black-ring {
+            animation: spin 3s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        /* 🔥 Исправление: куб всегда виден */
+        .player {
+            cursor: default;
+            z-index: 20;
+            background-image: url('Cube1.png');
+            /* Если изображение не загрузилось — виден красный куб */
+            background-color: #ff4444;
+            border: 2px solid white;
+            border-radius: 8px; /* куб — не круг! */
+        }
+
+        #score-display {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: clamp(16px, 3.5vw, 22px);
+            z-index: 100;
+            font-weight: bold;
+        }
+
+        #high-score-display {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: clamp(16px, 3.5vw, 22px);
+            z-index: 100;
+            color: #FFD700;
+            font-weight: bold;
+        }
+
+        #start-screen {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: rgba(0, 0, 0, 0.85);
+            z-index: 200;
+            padding: 20px;
+        }
+
+        #logo {
+            width: clamp(140px, 28vw, 220px);
+            margin-bottom: 15px;
+        }
+
+        #record-display {
+            color: #FFD700;
+            font-size: clamp(18px, 3.5vw, 22px);
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+
+        #start-button, #rules-button {
+            padding: 12px 24px;
+            font-size: clamp(16px, 3.5vw, 20px);
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 8px 0;
+            width: 80%;
+            max-width: 260px;
+            font-weight: bold;
+        }
+
+        #start-button {
+            background-color: #4CAF50;
+        }
+        #start-button:hover {
+            background-color: #45a049;
+        }
+
+        #rules-button {
+            background-color: #2196F3;
+        }
+        #rules-button:hover {
+            background-color: #0b7dda;
+        }
+
+        #rules-modal {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 92%;
+            max-width: 620px;
+            background-color: #222;
+            border: 2px solid #333;
+            border-radius: 12px;
+            z-index: 300;
+            padding: 22px;
+            color: #eee;
+            max-height: 85vh;
+            overflow-y: auto;
+            font-size: clamp(14px, 2.8vw, 16px);
+        }
+
+        #close-rules {
+            background-color: #f44336;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 15px;
+            font-size: clamp(16px, 3.2vw, 18px);
+            font-weight: bold;
+        }
+        #close-rules:hover {
+            background-color: #d32f2f;
+        }
+
+        #warning {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.85);
+            color: #ffcc00;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: clamp(18px, 3.6vw, 22px);
+            z-index: 300;
+            display: none;
+            pointer-events: none;
+            text-align: center;
+        }
+        
+        @media (max-width: 767px) { :root { --lanes: 4; } }
+        @media (min-width: 768px) and (max-width: 1024px) { :root { --lanes: 6; } }
+        @media (min-width: 1025px) { :root { --lanes: 8; } }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="score-display">Очки: 0</div>
+        <div id="high-score-display">Рекорд: 0</div>
+        <div id="warning">Колонка заблокирована!</div>
+
+        <div id="start-screen">
+            <img id="logo" src="Logo.png" alt="ORBIT'S GAME">
+            <div id="record-display">Лучший рекорд: 0</div>
+            <button id="rules-button">📖 Правила игры</button>
+            <button id="start-button">НАЧАТЬ ИГРУ</button>
+        </div>
+
+        <div id="rules-modal">
+            <h2>🎮 Правила игры</h2>
+            <h3>🎯 Цель</h3>
+            <p>Нажимай на орбы в ритме музыки (180 BPM) и набирай как можно больше очков за 2 минуты 18 секунд!</p>
+            <h3>💥 Типы объектов</h3>
+            <ul>
+                <li><strong>Орбы</strong> — дают очки (10–30).</li>
+                <li><strong>Куб (Cube1.png)</strong> — ловушка! Клик = проигрыш.</li>
+            </ul>
+            <h3>⚠️ Блокировка</h3>
+            <ul>
+                <li>4 клика подряд в одной колонке → блокировка на 5 сек.</li>
+                <li>Клик в другой колонке → мгновенная разблокировка.</li>
+            </ul>
+            <h3>🏆 Рекорд</h3>
+            <p>Твой лучший результат сохраняется в этом браузере!</p>
+            <button id="close-rules">Закрыть</button>
+        </div>
+    </div>
+
+    <script>
+        function getHighScore() {
+            const saved = localStorage.getItem('orbitGameHighScore');
+            return saved ? parseInt(saved, 10) : 0;
+        }
+
+        function saveHighScore(newScore) {
+            const current = getHighScore();
+            if (newScore > current) {
+                localStorage.setItem('orbitGameHighScore', newScore.toString());
+                return true;
+            }
+            return false;
+        }
+
+        function getScoreForOrb(filename) {
+            const scores = {
+                'YellowRing.webp': 10,
+                'PinkRing.webp': 10,
+                'RedRing.webp': 15,
+                'CubeRing.webp': 15,
+                'BlueRing.webp': 20,
+                'PurpleArrow.webp': 20,
+                'GreenArrow.webp': 20,
+                'TeleportRing.webp': 20,
+                'GreenRing.webp': 25,
+                'BlackRing.webp': 25,
+                'SpiderRing.webp': 30
+            };
+            return scores[filename] || 10;
+        }
+
+        function getLaneCount() {
+            const root = getComputedStyle(document.documentElement);
+            return parseInt(root.getPropertyValue('--lanes')) || 4;
+        }
+
+        const CONFIG = {
+            bpm: 180,
+            gameDuration: 138000,
+            noteInterval: 60000 / 180,
+            playerSpawnChance: 0.0833,
+            noteTypes: [
+                'YellowRing.webp', 'TeleportRing.webp', 'SpiderRing.webp',
+                'RedRing.webp', 'PinkRing.webp', 'GreenRing.webp',
+                'BlueRing.webp', 'BlackRing.webp', 'CubeRing.webp',
+                'PurpleArrow.webp', 'GreenArrow.webp'
+            ],
+            maxConsecutive: 4,
+            blockDuration: 5000
+        };
+
+        let score = 0;
+        let gameActive = false;
+        let audio = new Audio('80273.mp3');
+        let laneTimers = [];
+        let laneDirections = [];
+        let consecutiveClicks = [];
+        let isBlocked = [];
+        let blockTimeouts = [];
+
+        const gameContainer = document.getElementById('game-container');
+        const scoreDisplay = document.getElementById('score-display');
+        const highScoreDisplay = document.getElementById('high-score-display');
+        const startScreen = document.getElementById('start-screen');
+        const recordDisplay = document.getElementById('record-display');
+        const startButton = document.getElementById('start-button');
+        const rulesButton = document.getElementById('rules-button');
+        const rulesModal = document.getElementById('rules-modal');
+        const closeRules = document.getElementById('close-rules');
+        const warningEl = document.getElementById('warning');
+
+        function updateHighScoreUI() {
+            const highScore = getHighScore();
+            highScoreDisplay.textContent = `Рекорд: ${highScore}`;
+            recordDisplay.textContent = `Лучший рекорд: ${highScore}`;
+        }
+
+        updateHighScoreUI();
+
+        rulesButton.addEventListener('click', () => {
+            rulesModal.style.display = 'block';
+        });
+        closeRules.addEventListener('click', () => {
+            rulesModal.style.display = 'none';
+        });
+        rulesModal.addEventListener('click', (e) => {
+            if (e.target === rulesModal) rulesModal.style.display = 'none';
+        });
+
+        function showWarning() {
+            warningEl.style.display = 'block';
+            setTimeout(() => warningEl.style.display = 'none', 2000);
+        }
+
+        function blockLane(lane) {
+            if (isBlocked[lane]) return;
+            isBlocked[lane] = true;
+            const timeout = setTimeout(() => {
+                isBlocked[lane] = false;
+                blockTimeouts[lane] = null;
+            }, CONFIG.blockDuration);
+            blockTimeouts[lane] = timeout;
+        }
+
+        function unlockAllLanes() {
+            for (let i = 0; i < LANES; i++) {
+                isBlocked[i] = false;
+                if (blockTimeouts[i]) {
+                    clearTimeout(blockTimeouts[i]);
+                    blockTimeouts[i] = null;
+                }
+            }
+        }
+
+        let LANES = 4;
+        let NOTE_SIZE = 50;
+        let NOTE_SPEED = 3;
+
+        function updateLayout() {
+            LANES = getLaneCount();
+            const width = gameContainer.offsetWidth;
+            const height = gameContainer.offsetHeight;
+            const laneWidth = width / LANES;
+            NOTE_SIZE = Math.min(60, Math.max(40, laneWidth * 0.85)); // чуть больше
+            NOTE_SPEED = Math.max(2, Math.min(5, height / 200));
+        }
+
+        function getLaneX(laneIndex) {
+            const w = gameContainer.offsetWidth;
+            const laneWidth = w / LANES;
+            return laneIndex * laneWidth + (laneWidth - NOTE_SIZE) / 2;
+        }
+
+        function spawnObject(lane) {
+            if (!gameActive) return;
+
+            const isPlayer = Math.random() < CONFIG.playerSpawnChance;
+            const direction = laneDirections[lane];
+
+            const el = document.createElement('div');
+            // 🔥 ВАЖНО: куб использует тот же размер, что и орбы
+            el.style.width = NOTE_SIZE + 'px';
+            el.style.height = NOTE_SIZE + 'px';
+            el.style.left = `${getLaneX(lane)}px`;
+            el.style.top = direction ? `-${NOTE_SIZE}px` : `${gameContainer.offsetHeight}px`;
+
+            if (isPlayer) {
+                el.className = 'player';
+                // Убираем border-radius для куба в JS (переопределяем стиль)
+                el.style.borderRadius = '8px';
+                el.style.backgroundColor = '#ff4444';
+                el.style.border = '2px solid white';
+                el.style.backgroundImage = "url('Cube1.png')";
+
+                el.addEventListener('click', () => {
+                    if (gameActive) {
+                        gameActive = false;
+                        audio.pause();
+                        const isRecord = saveHighScore(score);
+                        let msg = "Вы нажали на куб! Проигрыш!\nВаши очки: " + score;
+                        if (isRecord) msg += "\n🎉 НОВЫЙ РЕКОРД!";
+                        alert(msg);
+                        location.reload();
+                    }
+                });
+            } else {
+                el.className = 'note';
+                el.dataset.lane = lane;
+                const noteType = CONFIG.noteTypes[Math.floor(Math.random() * CONFIG.noteTypes.length)];
+                el.style.backgroundImage = `url(${noteType})`;
+                if (noteType === 'GreenRing.webp') el.classList.add('green-ring');
+                if (noteType === 'BlackRing.webp') el.classList.add('black-ring');
+
+                el.addEventListener('click', () => {
+                    if (!gameActive) return;
+                    const laneIdx = parseInt(el.dataset.lane);
+                    if (isBlocked[laneIdx]) {
+                        showWarning();
+                        return;
+                    }
+                    unlockAllLanes();
+                    consecutiveClicks[laneIdx] = (consecutiveClicks[laneIdx] || 0) + 1;
+                    if (consecutiveClicks[laneIdx] >= CONFIG.maxConsecutive) {
+                        blockLane(laneIdx);
+                        consecutiveClicks[laneIdx] = 0;
+                    }
+                    const points = getScoreForOrb(noteType);
+                    score += points;
+                    scoreDisplay.textContent = `Очки: ${score}`;
+                    el.remove();
+                });
+            }
+
+            gameContainer.appendChild(el);
+            moveObject(el, direction);
+        }
+
+        function moveObject(el, direction) {
+            let y = parseInt(el.style.top);
+            const speed = NOTE_SPEED;
+            const interval = setInterval(() => {
+                if (!gameActive) {
+                    clearInterval(interval);
+                    return;
+                }
+                y = direction ? y + speed : y - speed;
+                el.style.top = `${y}px`;
+                if ((direction && y > gameContainer.offsetHeight) || (!direction && y < -NOTE_SIZE)) {
+                    clearInterval(interval);
+                    el.remove();
+                }
+            }, 16);
+        }
+
+        function startGame() {
+            updateLayout();
+            score = 0;
+            scoreDisplay.textContent = `Очки: ${score}`;
+            gameActive = true;
+            startScreen.style.display = 'none';
+
+            consecutiveClicks = new Array(LANES).fill(0);
+            isBlocked = new Array(LANES).fill(false);
+            blockTimeouts = new Array(LANES).fill(null);
+
+            laneDirections = Array.from({length: LANES}, () => Math.random() > 0.5);
+            laneTimers = [];
+
+            for (let i = 0; i < LANES; i++) {
+                const timer = setInterval(() => spawnObject(i), CONFIG.noteInterval);
+                laneTimers.push(timer);
+            }
+
+            audio.volume = 0.7;
+            audio.play().catch(e => console.log("Не удалось запустить музыку"));
+
+            setTimeout(() => {
+                if (gameActive) {
+                    gameActive = false;
+                    audio.pause();
+                    const isRecord = saveHighScore(score);
+                    let msg = "Победа!\nВы доиграли до конца!\nВаши очки: " + score;
+                    if (isRecord) msg += "\n🎉 НОВЫЙ РЕКОРД!";
+                    alert(msg);
+                    location.reload();
+                }
+            }, CONFIG.gameDuration);
+        }
+
+        startButton.addEventListener('click', startGame);
+
+        window.addEventListener('resize', () => {
+            if (gameActive) {
+                updateLayout();
+            }
+        });
+    </script>
+</body>
+</html>
