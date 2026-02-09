@@ -1,1 +1,370 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Orbit's Game Mobile</title>
+    <style>
+        :root {
+            --android-blue: #00e5ff;
+            --android-pink: #ff4081;
+            --glass: rgba(255, 255, 255, 0.1);
+        }
+
+        body, html { 
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            overflow: hidden; background: #000; 
+            font-family: 'Segoe UI', Roboto, sans-serif; 
+            touch-action: none; user-select: none;
+        }
+
+        canvas { display: block; width: 100% !important; height: 100% !important; }
+
+        #ui-container {
+            position: absolute; top: env(safe-area-inset-top, 20px);
+            left: env(safe-area-inset-left, 20px); right: env(safe-area-inset-right, 20px);
+            display: flex; justify-content: space-between; pointer-events: none; z-index: 10;
+        }
+
+        .stat-badge {
+            background: var(--glass); backdrop-filter: blur(15px);
+            border: 1px solid rgba(255,255,255,0.2); padding: 8px 15px;
+            border-radius: 15px; color: white; display: flex;
+            flex-direction: column; align-items: center;
+        }
+
+        .score-box { border-left: 4px solid var(--android-blue); }
+        .timer-box { border-right: 4px solid var(--android-pink); min-width: 80px; }
+        .label { font-size: 10px; letter-spacing: 1px; color: var(--android-blue); font-weight: bold; }
+        #score, #timer { font-size: 20px; font-weight: 900; }
+
+        /* Кнопка Паузы */
+        #pause-btn {
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+            background: var(--glass); border: 1px solid white; color: white;
+            padding: 10px 20px; border-radius: 10px; cursor: pointer;
+            z-index: 20; display: none; pointer-events: auto; backdrop-filter: blur(10px);
+        }
+
+        #crosshair {
+            position: absolute; top: 50%; left: 50%; width: 44px; height: 44px;
+            transform: translate(-50%, -50%); pointer-events: none; z-index: 5;
+            border: 1.5px solid rgba(0, 229, 255, 0.4); border-radius: 50%;
+        }
+        #crosshair::after {
+            content: ''; position: absolute; top: 50%; left: 50%; width: 6px; height: 6px;
+            background: var(--android-blue); border-radius: 50%; transform: translate(-50%, -50%);
+        }
+
+        .overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle at center, #1a1a1a 0%, #000 100%);
+            display: flex; justify-content: center; align-items: center; z-index: 100;
+        }
+
+        .menu-card { text-align: center; width: 90%; max-width: 400px; color: white; }
+        .game-logo { width: 80%; max-width: 250px; margin-bottom: 20px; filter: drop-shadow(0 0 15px var(--android-blue)); }
+
+        .btn {
+            background: linear-gradient(45deg, var(--android-blue), #00b8d4);
+            color: #000; border: none; padding: 15px 40px; font-size: 16px;
+            font-weight: 900; border-radius: 50px; text-transform: uppercase;
+            letter-spacing: 2px; cursor: pointer; margin: 10px;
+        }
+        .btn-outline { background: transparent; color: var(--android-blue); border: 2px solid var(--android-blue); }
+
+        #lang-switch {
+            position: absolute; bottom: 20px; right: 20px;
+            background: var(--glass); border: 1px solid var(--android-blue);
+            color: white; padding: 5px 15px; border-radius: 20px; cursor: pointer;
+            font-weight: bold; pointer-events: auto;
+        }
+
+        #game-over-ui, #pause-ui { display: none; background: rgba(0,0,0,0.85); backdrop-filter: blur(10px); }
+        #info-ui { display: none; background: rgba(0,0,0,0.95); z-index: 110; }
+        .info-text { text-align: left; font-size: 14px; line-height: 1.6; margin-bottom: 20px; }
+        .info-text b { color: var(--android-blue); }
+    </style>
+</head>
+<body>
+
+<div id="ui-container">
+    <div class="stat-badge score-box"><span class="label" data-t="score_label">SCORE</span><span id="score">0</span></div>
+    <div class="stat-badge timer-box"><span id="timer">02:17</span></div>
+</div>
+
+<button id="pause-btn" data-t="pause_btn">||</button>
+
+<div id="crosshair"></div>
+
+<div id="pause-ui" class="overlay" style="z-index: 150;">
+    <div class="menu-card">
+        <h2 style="color: var(--android-blue);" data-t="pause_title">PAUSED</h2>
+        <button id="resume-btn" class="btn" data-t="resume_btn">RESUME</button>
+    </div>
+</div>
+
+<div id="overlay" class="overlay">
+    <div class="menu-card">
+        <img src="Logo.png" alt="Logo" class="game-logo">
+        <div class="menu-content">
+            <button id="start-btn" class="btn" data-t="start_btn">PRESS START</button><br>
+            <button id="info-btn" class="btn btn-outline" data-t="how_to_btn">HOW TO PLAY</button>
+            <div id="best-score-display">BEST SCORE: 0</div>
+        </div>
+    </div>
+    <button id="lang-switch">EN</button>
+</div>
+
+<div id="info-ui" class="overlay">
+    <div class="menu-card">
+        <h2 style="color: var(--android-blue);" data-t="info_title">MISSION BRIEFING</h2>
+        <div class="info-text" id="info-content"></div>
+        <button id="close-info" class="btn" data-t="close_info">UNDERSTOOD</button>
+    </div>
+</div>
+
+<div id="game-over-ui" class="overlay">
+    <div class="menu-card">
+        <h2 style="color: white;" data-t="end_title">MISSION END</h2>
+        <div style="font-size: 48px; color: var(--android-blue); font-weight: 900;" id="final-score">0</div>
+        <div id="new-record-msg" style="color: var(--android-pink); font-weight: bold; display: none;" data-t="new_record">NEW RECORD!</div>
+        <br>
+        <button onclick="location.reload()" class="btn" data-t="restart_btn">RESTART</button>
+    </div>
+</div>
+
+<audio id="music" src="80273.mp3" loop></audio>
+
+<script type="importmap">
+    { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+
+<script type="module">
+    import * as THREE from 'three';
+
+    const translations = {
+        en: {
+            score_label: "SCORE", start_btn: "PRESS START", how_to_btn: "HOW TO PLAY",
+            best_score: "BEST SCORE", info_title: "MISSION BRIEFING", close_info: "UNDERSTOOD",
+            end_title: "MISSION END", new_record: "NEW RECORD!", restart_btn: "RESTART",
+            pause_btn: "||", pause_title: "PAUSED", resume_btn: "RESUME",
+            info_lines: [
+                "<b>AIM:</b> Drag your finger to look around.",
+                "<b>SHOOT:</b> Tap with a second finger to fire.",
+                "<b>TARGETS:</b> Hit space orbs to gain points.",
+                "<b>SNAKES:</b> Hit chains to clear the whole line!",
+                "<b>TIME:</b> Reach the max score before time ends."
+            ]
+        },
+        ru: {
+            score_label: "СЧЕТ", start_btn: "ИГРАТЬ", how_to_btn: "КАК ИГРАТЬ",
+            best_score: "РЕКОРД", info_title: "ИНСТРУКТАЖ", close_info: "ПОНЯТНО",
+            end_title: "МИССИЯ ОКОНЧЕНА", new_record: "НОВЫЙ РЕКОРД!", restart_btn: "ЗАНОВО",
+            pause_btn: "||", pause_title: "ПАУЗА", resume_btn: "ПРОДОЛЖИТЬ",
+            info_lines: [
+                "<b>ЦЕЛЬ:</b> Двигай пальцем, чтобы осматриваться.",
+                "<b>ОГОНЬ:</b> Нажми вторым пальцем, чтобы стрелять.",
+                "<b>МИШЕНИ:</b> Сбивай сферы, чтобы получать очки.",
+                "<b>ЗМЕЙКИ:</b> Сбивай цепи сфер для супер-бонуса!",
+                "<b>ВРЕМЯ:</b> Набери максимум очков, пока не закончится время."
+            ]
+        }
+    };
+
+    let currentLang = localStorage.getItem('orbit_lang') || 'en';
+    const ORB_FILES = ['CubeRing.webp', 'TeleportRing.webp', 'SpiderRing.webp', 'PurpleArrow.webp', 'GreenArrow.webp', 'BlackRing.webp', 'RedRing.webp', 'GreenRing.webp', 'BlueRing.webp', 'PinkRing.webp', 'YellowRing.webp'];
+    let scene, camera, renderer, music, score = 0, gameActive = false, isPaused = false;
+    let objects = [], textures = [], lon = 0, lat = 0, lookTouchId = null, lastX = 0, lastY = 0;
+    
+    const DURATION = 137, loader = new THREE.TextureLoader(), raycaster = new THREE.Raycaster();
+    let bestScore = localStorage.getItem('orbit_best_score') || 0;
+
+    function updateUI() {
+        const t = translations[currentLang];
+        document.querySelectorAll('[data-t]').forEach(el => {
+            el.innerHTML = t[el.getAttribute('data-t')];
+        });
+        document.getElementById('best-score-display').innerText = `${t.best_score}: ${bestScore}`;
+        document.getElementById('lang-switch').innerText = currentLang.toUpperCase();
+        
+        const infoHtml = t.info_lines.map(line => `<li>${line}</li>`).join('');
+        document.getElementById('info-content').innerHTML = `<ul>${infoHtml}</ul>`;
+    }
+
+    document.getElementById('lang-switch').addEventListener('click', () => {
+        currentLang = currentLang === 'en' ? 'ru' : 'en';
+        localStorage.setItem('orbit_lang', currentLang);
+        updateUI();
+    });
+
+    // ЛОГИКА ПАУЗЫ
+    const pauseBtn = document.getElementById('pause-btn');
+    const pauseUi = document.getElementById('pause-ui');
+    const resumeBtn = document.getElementById('resume-btn');
+
+    pauseBtn.addEventListener('click', () => {
+        if (!gameActive || isPaused) return;
+        isPaused = true;
+        music.pause();
+        pauseUi.style.display = 'flex';
+    });
+
+    resumeBtn.addEventListener('click', () => {
+        isPaused = false;
+        music.play();
+        pauseUi.style.display = 'none';
+    });
+
+    document.getElementById('start-btn').addEventListener('click', startGame);
+    document.getElementById('info-btn').addEventListener('click', () => document.getElementById('info-ui').style.display = 'flex');
+    document.getElementById('close-info').addEventListener('click', () => document.getElementById('info-ui').style.display = 'none');
+
+    async function startGame() {
+        document.getElementById('overlay').style.display = 'none';
+        pauseBtn.style.display = 'block';
+        gameActive = true;
+        try {
+            if (document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen();
+            if (screen.orientation?.lock) await screen.orientation.lock('landscape');
+        } catch (e) {}
+        music.play();
+    }
+
+    function init() {
+        updateUI();
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1100);
+        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        document.body.appendChild(renderer.domElement);
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        music = document.getElementById('music');
+        textures = ORB_FILES.map(url => loader.load(url));
+
+        const starGeo = new THREE.BufferGeometry();
+        const starPos = [];
+        for(let i=0; i<8000; i++) {
+            const p = new THREE.Vector3().setFromSphericalCoords(500, Math.random()*Math.PI, Math.random()*Math.PI*2);
+            starPos.push(p.x, p.y, p.z);
+        }
+        starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPos, 3));
+        scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({color: 0xffffff, size: 0.7})));
+
+        window.addEventListener('touchstart', e => {
+            if(!gameActive || isPaused) return;
+            for(let t of e.changedTouches) {
+                if(lookTouchId === null) { lookTouchId = t.identifier; lastX = t.clientX; lastY = t.clientY; }
+                else fire();
+            }
+        });
+
+        window.addEventListener('touchmove', e => {
+            if(!gameActive || isPaused) return;
+            for(let t of e.changedTouches) {
+                if(t.identifier === lookTouchId) {
+                    lon -= (t.clientX - lastX) * 0.4; lat += (t.clientY - lastY) * 0.4;
+                    lat = Math.max(-85, Math.min(85, lat)); lastX = t.clientX; lastY = t.clientY;
+                }
+            }
+        });
+
+        window.addEventListener('touchend', e => { 
+            for(let t of e.changedTouches) if(t.identifier === lookTouchId) lookTouchId = null; 
+        });
+
+        animate();
+    }
+
+    function fire() {
+        const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+        const laser = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 100), new THREE.MeshBasicMaterial({color: 0x00ffff, transparent: true, opacity: 0.5}));
+        laser.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir);
+        laser.position.copy(camera.position).addScaledVector(dir, 50);
+        scene.add(laser); setTimeout(() => scene.remove(laser), 50);
+        
+        raycaster.setFromCamera(new THREE.Vector2(0,0), camera);
+        const hits = raycaster.intersectObjects(objects);
+        if(hits.length > 0) {
+            const h = hits[0].object;
+            if(h.userData.sid) {
+                const sid = h.userData.sid;
+                const matches = objects.filter(o => o.userData.sid === sid);
+                score += matches.length * 15;
+                matches.forEach(m => scene.remove(m));
+                objects = objects.filter(o => o.userData.sid !== sid);
+            } else {
+                score += 10; scene.remove(h); objects = objects.filter(o => o !== h);
+            }
+            document.getElementById('score').innerText = score;
+        }
+    }
+
+    function spawnEntity(isSnake) {
+        const dir = new THREE.Vector3(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5).normalize();
+        const offset = new THREE.Vector3(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5).normalize().multiplyScalar(45);
+        const startPos = dir.multiplyScalar(250).add(offset);
+        const vel = new THREE.Vector3().subVectors(offset, startPos).normalize().multiplyScalar(1.5);
+        const type = Math.floor(Math.random()*ORB_FILES.length);
+
+        if(isSnake) {
+            const sid = Math.random();
+            for(let i=0; i<6; i++) createOrb(type, startPos.clone().addScaledVector(vel.clone().normalize(), -i*8), sid, vel);
+        } else { createOrb(type, startPos, null, vel); }
+    }
+
+    function createOrb(idx, pos, sid, vel) {
+        const s = new THREE.Sprite(new THREE.SpriteMaterial({map: textures[idx]}));
+        s.scale.set(12, 12, 1); s.position.copy(pos);
+        s.userData = { sid, vel };
+        scene.add(s); objects.push(s);
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        if(!gameActive || isPaused) return;
+
+        const current = music.currentTime;
+        const remaining = Math.max(0, DURATION - current);
+        document.getElementById('timer').innerText = `${Math.floor(remaining/60).toString().padStart(2,'0')}:${Math.floor(remaining%60).toString().padStart(2,'0')}`;
+
+        if(current >= DURATION) {
+            gameActive = false;
+            pauseBtn.style.display = 'none';
+            document.getElementById('final-score').innerText = score;
+            if (score > bestScore) {
+                bestScore = score;
+                localStorage.setItem('orbit_best_score', bestScore);
+                document.getElementById('new-record-msg').style.display = 'block';
+            }
+            document.getElementById('game-over-ui').style.display = 'flex';
+            return;
+        }
+
+        if (objects.filter(o => !o.userData.sid).length < 50) spawnEntity(false);
+        if (new Set(objects.filter(o => o.userData.sid).map(o => o.userData.sid)).size < 10) spawnEntity(true);
+
+        camera.lookAt(new THREE.Vector3(
+            Math.sin(THREE.MathUtils.degToRad(90-lat))*Math.cos(THREE.MathUtils.degToRad(lon)), 
+            Math.cos(THREE.MathUtils.degToRad(90-lat)), 
+            Math.sin(THREE.MathUtils.degToRad(90-lat))*Math.sin(THREE.MathUtils.degToRad(lon))
+        ));
+
+        for(let i=objects.length-1; i>=0; i--) {
+            objects[i].position.add(objects[i].userData.vel);
+            if(objects[i].position.distanceTo(camera.position) > 400) { scene.remove(objects[i]); objects.splice(i,1); }
+        }
+        renderer.render(scene, camera);
+    }
+    init();
+</script>
+</body>
+</html>
 
